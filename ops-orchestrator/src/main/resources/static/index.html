@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ops-agent 运维控制台</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-soft: #111c33;
+      --panel: #16213c;
+      --panel-2: #1b2846;
+      --border: #26345a;
+      --text: #e6ecf8;
+      --muted: #8fa1c7;
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, .12);
+      --green: #34d399;
+      --green-soft: rgba(52, 211, 153, .12);
+      --amber: #fbbf24;
+      --amber-soft: rgba(251, 191, 36, .12);
+      --red: #f87171;
+      --red-soft: rgba(248, 113, 113, .12);
+      --radius: 14px;
+      --shadow: 0 18px 40px rgba(2, 8, 23, .45);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(900px 500px at 10% -10%, rgba(56, 189, 248, .16), transparent 60%),
+        radial-gradient(800px 480px at 100% 0%, rgba(52, 211, 153, .10), transparent 55%),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .shell {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 26px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 14px; }
+
+    .logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0ea5e9, #22d3ee 55%, #34d399);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 18px;
+      color: #04121f;
+      box-shadow: 0 8px 24px rgba(14, 165, 233, .35);
+    }
+
+    .brand h1 { margin: 0; font-size: 20px; letter-spacing: .3px; }
+    .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .dot.up { background: var(--green); box-shadow: 0 0 0 4px var(--green-soft); }
+    .dot.down { background: var(--red); box-shadow: 0 0 0 4px var(--red-soft); }
+
+    .grid-cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, var(--panel), var(--bg-soft));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .card .label { color: var(--muted); font-size: 12px; letter-spacing: .6px; text-transform: uppercase; }
+    .card .value { font-size: 24px; font-weight: 700; margin-top: 6px; word-break: break-all; }
+    .card .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+    .panel {
+      background: linear-gradient(180deg, var(--panel), var(--bg-soft));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 22px;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, .015);
+    }
+
+    .panel-head h2 { margin: 0; font-size: 15px; letter-spacing: .3px; }
+    .panel-head .sub { color: var(--muted); font-size: 12px; }
+
+    button {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 9px;
+      padding: 7px 14px;
+      font-size: 12.5px;
+      transition: .18s ease;
+    }
+
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button:disabled { opacity: .55; cursor: wait; }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    th {
+      text-align: left;
+      padding: 12px 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .018);
+      border-bottom: 1px solid var(--border);
+      letter-spacing: .4px;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 12px 20px;
+      border-bottom: 1px solid rgba(38, 52, 90, .55);
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    tbody tr { cursor: pointer; transition: background .15s ease; }
+    tbody tr:hover { background: rgba(56, 189, 248, .05); }
+
+    .mono { font-family: Consolas, "Cascadia Code", monospace; font-size: 12px; color: #c7d5f2; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: .3px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, .25);
+    }
+
+    .badge.ok { background: var(--green-soft); color: var(--green); border-color: rgba(52, 211, 153, .3); }
+    .badge.warn { background: var(--amber-soft); color: var(--amber); border-color: rgba(251, 191, 36, .3); }
+    .badge.bad { background: var(--red-soft); color: var(--red); border-color: rgba(248, 113, 113, .3); }
+
+    .empty {
+      padding: 26px 20px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .api-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .api-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 20px;
+      border-bottom: 1px solid rgba(38, 52, 90, .55);
+      min-width: 0;
+    }
+
+    .api-item:nth-child(odd) { border-right: 1px solid rgba(38, 52, 90, .55); }
+
+    .method {
+      flex: 0 0 auto;
+      width: 52px;
+      text-align: center;
+      padding: 2px 0;
+      border-radius: 6px;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .4px;
+    }
+
+    .method.get { background: var(--green-soft); color: var(--green); }
+    .method.post { background: var(--accent-soft); color: var(--accent); }
+
+    .api-item .path { font-family: Consolas, "Cascadia Code", monospace; font-size: 12.5px; }
+    .api-item .desc { color: var(--muted); font-size: 12px; margin-left: auto; text-align: right; }
+
+    .module-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 20px; }
+
+    .chip {
+      padding: 4px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, .02);
+      color: #b9c9e8;
+      font-size: 12px;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+      padding-top: 4px;
+    }
+
+    .footer a { color: var(--accent); text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    dialog {
+      width: min(820px, 92vw);
+      max-height: 80vh;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      color: var(--text);
+      padding: 0;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
+    }
+
+    dialog::backdrop { background: rgba(3, 8, 20, .7); backdrop-filter: blur(3px); }
+
+    .dialog-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .dialog-head h3 { margin: 0; font-size: 14px; }
+    .dialog-body { padding: 16px 20px 22px; overflow: auto; max-height: calc(80vh - 60px); }
+
+    pre {
+      margin: 0;
+      padding: 16px;
+      border-radius: 10px;
+      background: #0b1326;
+      border: 1px solid var(--border);
+      color: #c8d8f8;
+      font-family: Consolas, "Cascadia Code", monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    @media (max-width: 900px) {
+      .grid-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .api-list { grid-template-columns: 1fr; }
+      .api-item:nth-child(odd) { border-right: none; }
+    }
+
+    @media (max-width: 560px) {
+      .shell { padding: 20px 14px 36px; }
+      .grid-cards { grid-template-columns: 1fr; }
+      th, td { padding: 10px 14px; }
+      .api-item { flex-wrap: wrap; }
+      .api-item .desc { margin-left: 0; width: 100%; text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">OA</div>
+        <div>
+          <h1>ops-agent 运维控制台</h1>
+          <p>12306 智能运维 Agent · P0 框架底座</p>
+        </div>
+      </div>
+      <div class="status-pill">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">正在检测服务状态...</span>
+      </div>
+    </header>
+
+    <section class="grid-cards">
+      <div class="card">
+        <div class="label">服务状态</div>
+        <div class="value" id="healthValue">-</div>
+        <div class="hint" id="healthHint">/ops/health</div>
+      </div>
+      <div class="card">
+        <div class="label">版本</div>
+        <div class="value" id="versionValue">-</div>
+        <div class="hint">当前构建版本</div>
+      </div>
+      <div class="card">
+        <div class="label">运维事件</div>
+        <div class="value" id="incidentValue">-</div>
+        <div class="hint">累计接入事件数</div>
+      </div>
+      <div class="card">
+        <div class="label">已装配模块</div>
+        <div class="value" id="moduleValue">-</div>
+        <div class="hint">L0-L6 分层模块</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>运维事件</h2>
+          <div class="sub" id="incidentSub">点击任意行查看事件详情</div>
+        </div>
+        <button id="refreshBtn" type="button">刷新</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>事件 ID</th>
+            <th>场景</th>
+            <th>资源</th>
+            <th>状态</th>
+            <th>创建时间</th>
+          </tr>
+        </thead>
+        <tbody id="incidentRows">
+          <tr><td colspan="5" class="empty">加载中...</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>可用接口</h2>
+          <div class="sub">P0 已提供的 HTTP 能力</div>
+        </div>
+      </div>
+      <div class="api-list">
+        <div class="api-item"><span class="method get">GET</span><span class="path">/ops/health</span><span class="desc">服务健康与模块清单</span></div>
+        <div class="api-item"><span class="method get">GET</span><span class="path">/ops/incidents</span><span class="desc">运维事件列表</span></div>
+        <div class="api-item"><span class="method post">POST</span><span class="path">/ops/incidents</span><span class="desc">创建运维事件</span></div>
+        <div class="api-item"><span class="method get">GET</span><span class="path">/ops/incidents/{requestId}</span><span class="desc">事件详情</span></div>
+        <div class="api-item"><span class="method post">POST</span><span class="path">/ops/incidents/{requestId}/analyze</span><span class="desc">推进分析流程</span></div>
+        <div class="api-item"><span class="method post">POST</span><span class="path">/ops/signals/evaluate</span><span class="desc">L1 规则引擎评估信号</span></div>
+        <div class="api-item"><span class="method post">POST</span><span class="path">/ops/diagnostics/gate-check</span><span class="desc">执行前门禁诊断</span></div>
+        <div class="api-item"><span class="method get">GET</span><span class="path">/actuator/prometheus</span><span class="desc">Prometheus 指标</span></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>已装配模块</h2>
+          <div class="sub" id="moduleSub">来自 /ops/health 的模块清单</div>
+        </div>
+      </div>
+      <div class="module-chips" id="moduleChips">
+        <span class="chip">加载中...</span>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>ops-agent · Spring Boot 3.5.15 · 端口 18080</span>
+      <span>
+        <a href="/actuator/health" target="_blank" rel="noopener">Actuator Health</a>
+        &nbsp;·&nbsp;
+        <a href="/actuator/prometheus" target="_blank" rel="noopener">Prometheus</a>
+      </span>
+    </footer>
+  </main>
+
+  <dialog id="detailDialog">
+    <div class="dialog-head">
+      <h3 id="detailTitle">事件详情</h3>
+      <button id="closeDialog" type="button">关闭</button>
+    </div>
+    <div class="dialog-body">
+      <pre id="detailBody">加载中...</pre>
+    </div>
+  </dialog>
+
+  <script>
+    (function () {
+      const state = { busy: false };
+
+      const el = {
+        dot: document.getElementById('statusDot'),
+        statusText: document.getElementById('statusText'),
+        healthValue: document.getElementById('healthValue'),
+        healthHint: document.getElementById('healthHint'),
+        versionValue: document.getElementById('versionValue'),
+        incidentValue: document.getElementById('incidentValue'),
+        moduleValue: document.getElementById('moduleValue'),
+        moduleChips: document.getElementById('moduleChips'),
+        incidentRows: document.getElementById('incidentRows'),
+        incidentSub: document.getElementById('incidentSub'),
+        refreshBtn: document.getElementById('refreshBtn'),
+        dialog: document.getElementById('detailDialog'),
+        detailTitle: document.getElementById('detailTitle'),
+        detailBody: document.getElementById('detailBody'),
+        closeDialog: document.getElementById('closeDialog')
+      };
+
+      function escapeHtml(value) {
+        return String(value === null || value === undefined ? '' : value).replace(/[&<>"']/g, function (ch) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+        });
+      }
+
+      function formatTime(value) {
+        if (!value) return '-';
+        const date = new Date(value);
+        return isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false });
+      }
+
+      function shortId(value) {
+        const text = String(value || '');
+        return text.length > 14 ? text.slice(0, 8) + '...' + text.slice(-4) : text || '-';
+      }
+
+      function stateClass(stateName) {
+        switch (stateName) {
+          case 'ARCHIVED':
+            return 'badge ok';
+          case 'FAILED':
+          case 'ROLLED_BACK':
+            return 'badge bad';
+          case 'GATE_CHECK':
+          case 'APPROVING':
+            return 'badge warn';
+          default:
+            return 'badge';
+        }
+      }
+
+      async function fetchJson(url, options) {
+        const response = await fetch(url, Object.assign({ headers: { 'Accept': 'application/json' } }, options || {}));
+        if (!response.ok) {
+          throw new Error(url + ' -> HTTP ' + response.status);
+        }
+        return response.json();
+      }
+
+      function renderHealth(health) {
+        el.dot.className = 'dot up';
+        el.statusText.textContent = '服务运行中';
+        el.healthValue.textContent = health.status || 'UP';
+        el.healthValue.style.color = 'var(--green)';
+        el.healthHint.textContent = '/ops/health · ' + (health.application || 'ops-agent');
+        el.versionValue.textContent = health.version || '-';
+        el.incidentValue.textContent = health.incidentCount === undefined ? '-' : health.incidentCount;
+        const modules = Array.isArray(health.modules) ? health.modules : [];
+        el.moduleValue.textContent = modules.length;
+        el.moduleChips.innerHTML = '';
+        if (!modules.length) {
+          el.moduleChips.innerHTML = '<span class="chip">无模块信息</span>';
+        } else {
+          modules.forEach(function (name) {
+            const chip = document.createElement('span');
+            chip.className = 'chip';
+            chip.textContent = name;
+            el.moduleChips.appendChild(chip);
+          });
+        }
+      }
+
+      function renderHealthError(error) {
+        el.dot.className = 'dot down';
+        el.statusText.textContent = '服务不可用';
+        el.healthValue.textContent = 'DOWN';
+        el.healthValue.style.color = 'var(--red)';
+        el.healthHint.textContent = error.message;
+      }
+
+      function renderIncidents(incidents) {
+        if (!Array.isArray(incidents) || incidents.length === 0) {
+          el.incidentRows.innerHTML = '<tr><td colspan="5" class="empty">暂无运维事件</td></tr>';
+          el.incidentSub.textContent = '当前没有事件，可通过 POST /ops/incidents 创建';
+          return;
+        }
+
+        el.incidentSub.textContent = '共 ' + incidents.length + ' 条 · 点击任意行查看事件详情';
+        el.incidentRows.innerHTML = '';
+        incidents.forEach(function (item) {
+          const request = item.request || {};
+          const row = document.createElement('tr');
+          row.dataset.requestId = request.requestId || '';
+          row.innerHTML =
+            '<td class="mono" title="' + escapeHtml(request.requestId) + '">' + escapeHtml(shortId(request.requestId)) + '</td>' +
+            '<td>' + escapeHtml(request.scene || '-') + '</td>' +
+            '<td class="mono">' + escapeHtml(request.resourceId || '-') + '</td>' +
+            '<td><span class="' + stateClass(item.state) + '">' + escapeHtml(item.state || '-') + '</span></td>' +
+            '<td>' + escapeHtml(formatTime(item.createdAt)) + '</td>';
+          row.addEventListener('click', function () {
+            openDetail(request.requestId);
+          });
+          el.incidentRows.appendChild(row);
+        });
+      }
+
+      async function openDetail(requestId) {
+        if (!requestId) return;
+        el.detailTitle.textContent = '事件详情 · ' + shortId(requestId);
+        el.detailBody.textContent = '加载中...';
+        el.dialog.showModal();
+        try {
+          const detail = await fetchJson('/ops/incidents/' + encodeURIComponent(requestId));
+          el.detailBody.textContent = JSON.stringify(detail, null, 2);
+        } catch (error) {
+          el.detailBody.textContent = '加载失败: ' + error.message;
+        }
+      }
+
+      async function load() {
+        if (state.busy) return;
+        state.busy = true;
+        el.refreshBtn.disabled = true;
+        try {
+          const results = await Promise.allSettled([
+            fetchJson('/ops/health'),
+            fetchJson('/ops/incidents')
+          ]);
+
+          if (results[0].status === 'fulfilled') {
+            renderHealth(results[0].value);
+          } else {
+            renderHealthError(results[0].reason);
+          }
+
+          if (results[1].status === 'fulfilled') {
+            renderIncidents(results[1].value);
+          } else {
+            el.incidentRows.innerHTML = '<tr><td colspan="5" class="empty">事件加载失败：' + escapeHtml(results[1].reason.message) + '</td></tr>';
+          }
+
+          if (results[1].status === 'fulfilled' && results[0].status === 'fulfilled') {
+            el.incidentValue.textContent = Array.isArray(results[1].value) ? results[1].value.length : (results[0].value.incidentCount || 0);
+          }
+        } finally {
+          state.busy = false;
+          el.refreshBtn.disabled = false;
+        }
+      }
+
+      el.refreshBtn.addEventListener('click', load);
+      el.closeDialog.addEventListener('click', function () { el.dialog.close(); });
+      el.dialog.addEventListener('click', function (event) {
+        if (event.target === el.dialog) el.dialog.close();
+      });
+
+      load();
+      window.setInterval(load, 30000);
+    })();
+  </script>
+</body>
+</html>

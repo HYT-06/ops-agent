@@ -1,0 +1,100 @@
+server:
+  port: 18080
+
+spring:
+  application:
+    name: ops-agent
+  # 默认激活 local profile：本地差异化配置可放 application-local.yml（已被 .gitignore 忽略）
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  devtools:
+    restart:
+      enabled: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+# ============================================================
+# 运维 Agent 配置（与设计文档第 7 章对齐）
+# ============================================================
+ops:
+  agent:
+    llm:
+      strong-model: qwen-max
+      light-model: qwen-turbo
+      timeout-seconds: 120
+      budget:
+        daily-tokens: 5000000
+        per-scene-tokens: 1500000
+    analysis:
+      max-duration-seconds: 300
+      evidence-max-items: 50
+    gate:
+      approval-timeout-minutes: 15
+      approval-escalation-minutes: 20
+      # 定时检查审批超时的间隔，由 ApprovalTimeoutTask 读取
+      approval-check-interval-ms: 30000
+      # 参数硬边界：使用 [工具名] 形式保留点号，避免被当作嵌套键
+      bounds:
+        "[exec.updateThreadPool]":
+          coreSize:
+            min: 8
+            max: 64
+          maxSize:
+            min: 8
+            max: 128
+        "[exec.scaleConsumer]":
+          consumerCount:
+            min: 1
+            max: 16
+        "[dlq.replay]":
+          batchSize:
+            min: 1
+            max: 100
+    rag:
+      top-k: 5
+      min-confidence: 0.6
+      verified-only: true
+    knowledge:
+      auto-promote-threshold: 3
+      auto-promote-confidence: 0.75
+
+  # L1 规则引擎阈值（后续可迁移到 Nacos 热更新）
+  rules:
+    fullgc:
+      rule-id: fullgc-trigger
+      max-gc-count5m: 3
+      max-avg-pause-ms: 1000
+      dedup-window-seconds: 300
+    slow-sql:
+      rule-id: slow-sql-trigger
+      max-slow-count-per-min: 10
+      max-p99-ms: 2000
+      dedup-window-seconds: 300
+    dlq:
+      rule-id: dlq-trigger
+      max-depth: 0
+      dedup-window-seconds: 60
+
+# ============================================================
+# Actuator / Prometheus
+# ============================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+logging:
+  level:
+    root: INFO
+    '[com.ticket.ops]': DEBUG
